@@ -1,8 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from db import get_db_connection
 
 app = FastAPI()
 
+pg = get_db_connection()
 class ShortenRequest(BaseModel):
     url: str | None = None
     shortcode: str | None = None
