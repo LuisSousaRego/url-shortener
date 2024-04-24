@@ -1,0 +1,12 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    working_dir: /app
+    volumes:
+      - ./src:/app
+    environment:
+      - WATCHFILES_FORCE_POLLING=true
+  db:
+    image: "postgres:16"
