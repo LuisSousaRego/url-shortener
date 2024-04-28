@@ -3,12 +3,6 @@
 - Docker
 - Docker compose
 
-# Setup
-
-```bash
-
-```
-
 # Start
 
 ```bash
