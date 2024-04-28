@@ -2,11 +2,11 @@ from fastapi import FastAPI, HTTPException, Response, status
 from pydantic import BaseModel
 from db import setup_db
 import re
-from utils import sanitize_url
+from utils import sanitize_url, generate_shortcode, SHORTCODE_LENGTH
 
-app = FastAPI()
 
 pg = setup_db()
+app = FastAPI()
 
 class ShortenRequest(BaseModel):
     url: str | None = None
@@ -15,31 +15,35 @@ class ShortenRequest(BaseModel):
 @app.post("/shorten")
 def create_short_url(shorten_request: ShortenRequest):
     if shorten_request.url is None:
-        raise HTTPException(status_code=400, detail="Url not present")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Url not present")
 
-    shortcode = shorten_request.shortcode
     url = sanitize_url(shorten_request.url)
+    shortcode = shorten_request.shortcode
 
     with pg.cursor() as cur:
         if shorten_request.shortcode is None:
-            # gerar shortcode e veirficar na db que ainda nao existe
-
-            # if shorten_request.shortcode is alreadyinuse:
-                # raise HTTPException(status_code=409, detail="Shortcode already in use")
-            pass
+            while shortcode is None:
+                shortcode = generate_shortcode(SHORTCODE_LENGTH)
+                try:
+                    cur.execute('INSERT INTO urls (url, shortcode) VALUES (%s, %s)', (url, shortcode))
+                except:
+                    shortcode = None
         else:
+            # validate received shortcode
             is_alphanumeric_underscore = bool(re.match('^[a-zA-Z0-9_]+$', shorten_request.shortcode))
-            if len(shorten_request.shortcode) != 6 or not is_alphanumeric_underscore:
-                raise HTTPException(status_code=412, detail="The provided shortcode is invalid")
-        # verificar se shortcode existe numa transacao
-        cur.execute('INSERT INTO urls (url, shortcode) VALUES (%s, %s)', (url, shortcode))
-        pg.commit()
+            if len(shorten_request.shortcode) != SHORTCODE_LENGTH or not is_alphanumeric_underscore:
+                raise HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="The provided shortcode is invalid")
 
-    return { "shortcode": shortcode }
+            try:
+                cur.execute('INSERT INTO urls (url, shortcode) VALUES (%s, %s)', (url, shortcode))
+            except:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Shortcode already in use")
+
+        pg.commit() 
+        return { "shortcode": shortcode }
 
 @app.get("/{shortcode}")
 def read_shortcode(shortcode: str, response: Response):
-
     with pg.cursor() as cur:
         cur.execute('''
                     UPDATE urls
@@ -51,14 +55,13 @@ def read_shortcode(shortcode: str, response: Response):
 
         row = cur.fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="Shortcode not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shortcode not found")
         pg.commit()
         response.status_code = status.HTTP_302_FOUND
         response.headers['Location'] = row[0]
 
 @app.get("/{shortcode}/stats")
 def read_stats(shortcode: str):
-
     with pg.cursor() as cur:
         cur.execute('''
                     SELECT created, last_redirect, redirect_count
@@ -68,7 +71,7 @@ def read_stats(shortcode: str):
 
         row = cur.fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="Shortcode not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shortcode not found")
 
         created, last_redirect, redirect_count = row
         stats = {
@@ -81,4 +84,3 @@ def read_stats(shortcode: str):
 @app.get("/")
 def read_root():
     return "url shortener"
-
