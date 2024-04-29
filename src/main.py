@@ -1,8 +1,7 @@
 from fastapi import FastAPI, HTTPException, Response, status
 from pydantic import BaseModel
 from db import setup_db
-import re
-from utils import sanitize_url, generate_shortcode, SHORTCODE_LENGTH
+from utils import GENERATE_TRIES, sanitize_url, generate_shortcode, validate_shortcode
 
 
 pg = setup_db()
@@ -22,18 +21,18 @@ def create_short_url(shorten_request: ShortenRequest):
 
     with pg.cursor() as cur:
         if shorten_request.shortcode is None:
-            while shortcode is None:
-                shortcode = generate_shortcode(SHORTCODE_LENGTH)
+            for i in range(GENERATE_TRIES):
+                shortcode = generate_shortcode()
                 try:
                     cur.execute('INSERT INTO urls (url, shortcode) VALUES (%s, %s)', (url, shortcode))
+                    break
                 except:
                     shortcode = None
+                    if i == GENERATE_TRIES - 1:
+                        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not generate shortcode")
         else:
-            # validate received shortcode
-            is_alphanumeric_underscore = bool(re.match('^[a-zA-Z0-9_]+$', shorten_request.shortcode))
-            if len(shorten_request.shortcode) != SHORTCODE_LENGTH or not is_alphanumeric_underscore:
+            if not validate_shortcode(shorten_request.shortcode):
                 raise HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="The provided shortcode is invalid")
-
             try:
                 cur.execute('INSERT INTO urls (url, shortcode) VALUES (%s, %s)', (url, shortcode))
             except:
