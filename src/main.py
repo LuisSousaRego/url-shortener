@@ -12,7 +12,7 @@ class ShortenRequest(BaseModel):
     shortcode: str | None = None
 
 @app.post("/shorten")
-def create_short_url(shorten_request: ShortenRequest):
+def create_short_url(shorten_request: ShortenRequest, response: Response):
     if shorten_request.url is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Url not present")
 
@@ -39,7 +39,8 @@ def create_short_url(shorten_request: ShortenRequest):
             except:
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Shortcode already in use")
 
-        pg.commit() 
+        pg.commit()
+        response.status_code = status.HTTP_201_CREATED
         return { "shortcode": shortcode }
 
 @app.get("/{shortcode}")
