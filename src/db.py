@@ -10,20 +10,18 @@ def setup_db():
                                     host="db",
                                     port="5432")
 
-        cur = connection.cursor()
-        cur.execute("""
-                CREATE TABLE IF NOT EXISTS urls (
-                    url                 TEXT NOT NULL,
-                    shortcode           char(6) PRIMARY KEY,
-                    created             timestamp NOT NULL DEFAULT current_timestamp,
-                    last_redirect       timestamp,
-                    redirect_count      integer NOT NULL DEFAULT 0
-                );""")
+        with connection.cursor() as cur:
+            cur.execute("""
+                    CREATE TABLE IF NOT EXISTS urls (
+                        url                 TEXT NOT NULL,
+                        shortcode           char(6) PRIMARY KEY,
+                        created             timestamp NOT NULL DEFAULT current_timestamp,
+                        last_redirect       timestamp,
+                        redirect_count      integer NOT NULL DEFAULT 0
+                    );""")
+        connection.commit()
 
     except (Exception, Error) as error:
         print("Error while connecting to PostgreSQL", error)
-    finally:
-        connection.commit()
-        cur.close()
 
     return connection
