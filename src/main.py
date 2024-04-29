@@ -33,6 +33,7 @@ def create_short_url(shorten_request: ShortenRequest):
         else:
             if not validate_shortcode(shorten_request.shortcode):
                 raise HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="The provided shortcode is invalid")
+
             try:
                 cur.execute('INSERT INTO urls (url, shortcode) VALUES (%s, %s)', (url, shortcode))
             except:
