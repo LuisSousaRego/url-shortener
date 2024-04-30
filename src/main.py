@@ -28,8 +28,8 @@ def create_short_url(shorten_request: ShortenRequest, response: Response):
                             FROM urls
                             WHERE shortcode = %s''', (shortcode,))
                 row = cur.fetchone()
-                if row is not None:
-                    shortcode = row[0]
+                if row is None:
+                    # found a shortcode that does not exist yet
                     break
         else:
             if not validate_shortcode(shorten_request.shortcode):
@@ -37,12 +37,12 @@ def create_short_url(shorten_request: ShortenRequest, response: Response):
 
         try:
             cur.execute('INSERT INTO urls (url, shortcode) VALUES (%s, %s)', (url, shortcode))
+            pg.commit()
         except:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Shortcode already in use")
-
-        pg.commit()
-        response.status_code = status.HTTP_201_CREATED
-        return { "shortcode": shortcode }
+        
+    response.status_code = status.HTTP_201_CREATED
+    return { "shortcode": shortcode }
 
 @app.get("/{shortcode}")
 def read_shortcode(shortcode: str, response: Response):
