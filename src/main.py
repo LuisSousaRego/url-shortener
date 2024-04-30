@@ -21,23 +21,24 @@ def create_short_url(shorten_request: ShortenRequest, response: Response):
 
     with pg.cursor() as cur:
         if shorten_request.shortcode is None:
-            for i in range(GENERATE_TRIES):
+            for _ in range(GENERATE_TRIES):
                 shortcode = generate_shortcode()
-                try:
-                    cur.execute('INSERT INTO urls (url, shortcode) VALUES (%s, %s)', (url, shortcode))
+                cur.execute('''
+                            SELECT shortcode
+                            FROM urls
+                            WHERE shortcode = %s''', (shortcode,))
+                row = cur.fetchone()
+                if row is not None:
+                    shortcode = row[0]
                     break
-                except:
-                    shortcode = None
-                    if i == GENERATE_TRIES - 1:
-                        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not generate shortcode")
         else:
             if not validate_shortcode(shorten_request.shortcode):
                 raise HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="The provided shortcode is invalid")
 
-            try:
-                cur.execute('INSERT INTO urls (url, shortcode) VALUES (%s, %s)', (url, shortcode))
-            except:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Shortcode already in use")
+        try:
+            cur.execute('INSERT INTO urls (url, shortcode) VALUES (%s, %s)', (url, shortcode))
+        except:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Shortcode already in use")
 
         pg.commit()
         response.status_code = status.HTTP_201_CREATED
